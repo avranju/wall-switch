@@ -5,6 +5,7 @@ use std::time::Duration;
 use anyhow::{Context, Result};
 use clap::Parser;
 use rand::seq::IndexedRandom;
+use tokio::signal::unix::{signal, SignalKind};
 use tokio::time::sleep;
 use walkdir::WalkDir;
 
@@ -89,6 +90,37 @@ fn get_current_wallpaper() -> Result<Option<PathBuf>> {
 
     Ok(None)
 }
+/// Perform one wallpaper change cycle: query current, pick a different random image, and set it
+fn change_wallpaper_once(images: &[PathBuf]) {
+    // Get current wallpaper
+    let current_wallpaper = match get_current_wallpaper() {
+        Ok(current) => {
+            if let Some(ref path) = current {
+                println!("Current wallpaper: {}", path.display());
+            }
+            current
+        }
+        Err(e) => {
+            eprintln!("Warning: Could not query current wallpaper: {}", e);
+            None
+        }
+    };
+
+    // Select a new random wallpaper
+    if let Some(new_wallpaper) = select_random_image(images, current_wallpaper.as_ref()) {
+        // Only change if it's different from current (extra safety check)
+        if current_wallpaper.as_ref() != Some(&new_wallpaper) {
+            if let Err(e) = set_wallpaper(&new_wallpaper) {
+                eprintln!("Error setting wallpaper: {}", e);
+            }
+        } else {
+            println!("Selected image is the same as current, skipping change");
+        }
+    } else {
+        eprintln!("Warning: Could not select a random image");
+    }
+}
+
 
 /// Set wallpaper using `swww img`
 fn set_wallpaper(image_path: &PathBuf) -> Result<()> {
@@ -145,41 +177,32 @@ async fn main() -> Result<()> {
     println!("Starting wallpaper switcher with {} images", images.len());
     println!("Changing wallpaper every {} seconds", cli.interval_in_secs);
 
-    // Main loop
+    // Create SIGUSR1 signal listener
+    let mut sigusr1_stream = signal(SignalKind::user_defined1())
+        .context("Failed to register SIGUSR1 handler")?;
+
+    // Do an initial change once at startup
+    change_wallpaper_once(&images);
+
+    // Main event loop: wait for either interval or SIGUSR1, then change wallpaper
     loop {
-        // Get current wallpaper
-        let current_wallpaper = match get_current_wallpaper() {
-            Ok(current) => {
-                if let Some(ref path) = current {
-                    println!("Current wallpaper: {}", path.display());
-                }
-                current
-            }
-            Err(e) => {
-                eprintln!("Warning: Could not query current wallpaper: {}", e);
-                None
-            }
-        };
-
-        // Select a new random wallpaper
-        if let Some(new_wallpaper) = select_random_image(&images, current_wallpaper.as_ref()) {
-            // Only change if it's different from current (extra safety check)
-            if current_wallpaper.as_ref() != Some(&new_wallpaper) {
-                if let Err(e) = set_wallpaper(&new_wallpaper) {
-                    eprintln!("Error setting wallpaper: {}", e);
-                }
-            } else {
-                println!("Selected image is the same as current, skipping change");
-            }
-        } else {
-            eprintln!("Warning: Could not select a random image");
-        }
-
-        // Wait for the specified interval
         println!(
-            "Waiting {} seconds until next change...",
+            "Waiting {} seconds until next change... (send SIGUSR1 to change immediately)",
             cli.interval_in_secs
         );
-        sleep(Duration::from_secs(cli.interval_in_secs)).await;
+
+        let sleep_fut = sleep(Duration::from_secs(cli.interval_in_secs));
+        tokio::pin!(sleep_fut);
+
+        tokio::select! {
+            _ = &mut sleep_fut => {
+                println!("Interval expired, changing wallpaper...");
+            }
+            _ = sigusr1_stream.recv() => {
+                println!("Received SIGUSR1 signal, changing wallpaper immediately...");
+            }
+        }
+
+        change_wallpaper_once(&images);
     }
 }
