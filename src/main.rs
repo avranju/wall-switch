@@ -19,6 +19,14 @@ struct Cli {
     /// Interval in seconds to change the wallpaper
     #[clap(short('n'), long, default_value = "3600", value_name = "INTERVAL")]
     interval_in_secs: u64,
+
+    /// Transition type
+    #[clap(short('t'), long, default_value = "random", value_name="TRANSITION_TYPE")]
+    transition_type: String,
+
+    /// Transition duration in seconds
+    #[clap(short('d'), long, default_value = "3", value_name="TRANSITION_DURATION_SECS")]
+    transition_duration_secs: u32,
 }
 
 /// Recursively discover all image files from the given folder paths
@@ -91,7 +99,7 @@ fn get_current_wallpaper() -> Result<Option<PathBuf>> {
     Ok(None)
 }
 /// Perform one wallpaper change cycle: query current, pick a different random image, and set it
-fn change_wallpaper_once(images: &[PathBuf]) {
+fn change_wallpaper_once(images: &[PathBuf], cli: &Cli) {
     // Get current wallpaper
     let current_wallpaper = match get_current_wallpaper() {
         Ok(current) => {
@@ -110,7 +118,7 @@ fn change_wallpaper_once(images: &[PathBuf]) {
     if let Some(new_wallpaper) = select_random_image(images, current_wallpaper.as_ref()) {
         // Only change if it's different from current (extra safety check)
         if current_wallpaper.as_ref() != Some(&new_wallpaper) {
-            if let Err(e) = set_wallpaper(&new_wallpaper) {
+            if let Err(e) = set_wallpaper(&new_wallpaper, cli) {
                 eprintln!("Error setting wallpaper: {}", e);
             }
         } else {
@@ -123,11 +131,15 @@ fn change_wallpaper_once(images: &[PathBuf]) {
 
 
 /// Set wallpaper using `swww img`
-fn set_wallpaper(image_path: &PathBuf) -> Result<()> {
+fn set_wallpaper(image_path: &PathBuf, cli: &Cli) -> Result<()> {
     println!("Setting wallpaper to: {}", image_path.display());
 
     let output = Command::new("swww")
         .arg("img")
+        .arg("--transition-type")
+        .arg(&cli.transition_type)
+        .arg("--transition-duration")
+        .arg(format!("{}", cli.transition_duration_secs))
         .arg(image_path)
         .output()
         .context("Failed to execute swww img command")?;
@@ -182,7 +194,7 @@ async fn main() -> Result<()> {
         .context("Failed to register SIGUSR1 handler")?;
 
     // Do an initial change once at startup
-    change_wallpaper_once(&images);
+    change_wallpaper_once(&images, &cli);
 
     // Main event loop: wait for either interval or SIGUSR1, then change wallpaper
     loop {
@@ -203,6 +215,6 @@ async fn main() -> Result<()> {
             }
         }
 
-        change_wallpaper_once(&images);
+        change_wallpaper_once(&images, &cli);
     }
 }
