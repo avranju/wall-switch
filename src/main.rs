@@ -5,7 +5,7 @@ use std::time::Duration;
 use anyhow::{Context, Result};
 use clap::Parser;
 use rand::seq::IndexedRandom;
-use tokio::signal::unix::{signal, SignalKind};
+use tokio::signal::unix::{SignalKind, signal};
 use tokio::time::sleep;
 use walkdir::WalkDir;
 
@@ -21,11 +21,21 @@ struct Cli {
     interval_in_secs: u64,
 
     /// Transition type
-    #[clap(short('t'), long, default_value = "random", value_name="TRANSITION_TYPE")]
+    #[clap(
+        short('t'),
+        long,
+        default_value = "random",
+        value_name = "TRANSITION_TYPE"
+    )]
     transition_type: String,
 
     /// Transition duration in seconds
-    #[clap(short('d'), long, default_value = "3", value_name="TRANSITION_DURATION_SECS")]
+    #[clap(
+        short('d'),
+        long,
+        default_value = "3",
+        value_name = "TRANSITION_DURATION_SECS"
+    )]
     transition_duration_secs: u32,
 }
 
@@ -75,16 +85,16 @@ fn discover_images(paths: &[PathBuf]) -> Result<Vec<PathBuf>> {
     Ok(images)
 }
 
-/// Query the current wallpaper using `swww query`
+/// Query the current wallpaper using `awww query`
 fn get_current_wallpaper() -> Result<Option<PathBuf>> {
-    let output = Command::new("swww")
+    let output = Command::new("awww")
         .arg("query")
         .output()
-        .context("Failed to execute swww query command")?;
+        .context("Failed to execute awww query command")?;
 
     if !output.status.success() {
         let error_msg = String::from_utf8_lossy(&output.stderr);
-        anyhow::bail!("swww query failed: {}", error_msg);
+        anyhow::bail!("awww query failed: {}", error_msg);
     }
 
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -129,12 +139,11 @@ fn change_wallpaper_once(images: &[PathBuf], cli: &Cli) {
     }
 }
 
-
-/// Set wallpaper using `swww img`
+/// Set wallpaper using `awww img`
 fn set_wallpaper(image_path: &PathBuf, cli: &Cli) -> Result<()> {
     println!("Setting wallpaper to: {}", image_path.display());
 
-    let output = Command::new("swww")
+    let output = Command::new("awww")
         .arg("img")
         .arg("--transition-type")
         .arg(&cli.transition_type)
@@ -142,11 +151,11 @@ fn set_wallpaper(image_path: &PathBuf, cli: &Cli) -> Result<()> {
         .arg(format!("{}", cli.transition_duration_secs))
         .arg(image_path)
         .output()
-        .context("Failed to execute swww img command")?;
+        .context("Failed to execute awww img command")?;
 
     if !output.status.success() {
         let error_msg = String::from_utf8_lossy(&output.stderr);
-        anyhow::bail!("swww img failed: {}", error_msg);
+        anyhow::bail!("awww img failed: {}", error_msg);
     }
 
     println!("Wallpaper changed successfully");
@@ -190,8 +199,8 @@ async fn main() -> Result<()> {
     println!("Changing wallpaper every {} seconds", cli.interval_in_secs);
 
     // Create SIGUSR1 signal listener
-    let mut sigusr1_stream = signal(SignalKind::user_defined1())
-        .context("Failed to register SIGUSR1 handler")?;
+    let mut sigusr1_stream =
+        signal(SignalKind::user_defined1()).context("Failed to register SIGUSR1 handler")?;
 
     // Do an initial change once at startup
     change_wallpaper_once(&images, &cli);
