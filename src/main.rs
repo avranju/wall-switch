@@ -37,6 +37,10 @@ struct Cli {
         value_name = "TRANSITION_DURATION_SECS"
     )]
     transition_duration_secs: u32,
+
+    /// Resize strategy to pass to `awww img --resize`
+    #[clap(long, value_name = "RESIZE", value_parser = ["no", "crop", "fit", "stretch"])]
+    resize: Option<String>,
 }
 
 /// Recursively discover all image files from the given folder paths
@@ -143,12 +147,19 @@ fn change_wallpaper_once(images: &[PathBuf], cli: &Cli) {
 fn set_wallpaper(image_path: &PathBuf, cli: &Cli) -> Result<()> {
     println!("Setting wallpaper to: {}", image_path.display());
 
-    let output = Command::new("awww")
+    let mut command = Command::new("awww");
+    command
         .arg("img")
         .arg("--transition-type")
         .arg(&cli.transition_type)
         .arg("--transition-duration")
-        .arg(format!("{}", cli.transition_duration_secs))
+        .arg(format!("{}", cli.transition_duration_secs));
+
+    if let Some(resize) = &cli.resize {
+        command.arg("--resize").arg(resize);
+    }
+
+    let output = command
         .arg(image_path)
         .output()
         .context("Failed to execute awww img command")?;

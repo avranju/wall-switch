@@ -4,7 +4,7 @@ A simple Rust CLI tool that automatically switches your wallpaper at specified i
 
 ## Prerequisites
 
-- [swww](https://github.com/Horus645/swww) - Wayland wallpaper daemon
+- [awww](https://codeberg.org/LGFae/awww) - Wayland wallpaper daemon
 - Rust toolchain (for building from source)
 
 ## Installation
@@ -34,6 +34,7 @@ The binary will be available at `target/release/wall-switch`.
 
 - `--image-paths` (`-i`) - Path to folder containing images (can be specified multiple times)
 - `--interval-in-secs` - Time interval between wallpaper changes in seconds (default: 3600)
+- `--resize` - Resize strategy forwarded to `awww img --resize` (`no`, `crop`, `fit`, or `stretch`)
 
 ## Features
 
