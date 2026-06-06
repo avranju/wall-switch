@@ -21,19 +21,20 @@ The binary will be available at `target/release/wall-switch`.
 
 ```bash
 # Basic usage - change wallpaper every hour from a single folder
-./wall-switch --image-paths /path/to/your/wallpapers
+./wall-switch local --image-paths /path/to/your/wallpapers
 
 # Multiple image directories
-./wall-switch --image-paths /path/to/wallpapers1 --image-paths /path/to/wallpapers2
+./wall-switch local --image-paths /path/to/wallpapers1 --image-paths /path/to/wallpapers2
 
 # Custom interval (30 seconds for testing)
-./wall-switch --image-paths /path/to/wallpapers --interval-in-secs 30
+./wall-switch local --image-paths /path/to/wallpapers --interval-in-secs 30
 ```
 
-### Options
+### Local Options
 
 - `--image-paths` (`-i`) - Path to folder containing images (can be specified multiple times)
 - `--interval-in-secs` - Time interval between wallpaper changes in seconds (default: 3600)
+- `--transition-type` (`-t`) - Transition type forwarded to `awww img --transition-type` (default: `random`)
 - `--resize` - Resize strategy forwarded to `awww img --resize` (`no`, `crop`, `fit`, or `stretch`)
 
 ## Features
@@ -46,7 +47,7 @@ The binary will be available at `target/release/wall-switch`.
 
 ```bash
 # Start the wallpaper switcher
-./wall-switch -i ~/Pictures/Wallpapers -i ~/Downloads/Backgrounds --interval-in-secs 1800
+./wall-switch local -i ~/Pictures/Wallpapers -i ~/Downloads/Backgrounds --interval-in-secs 1800
 
 # Output:
 # Discovered 42 images
