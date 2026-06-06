@@ -12,49 +12,19 @@ pub struct LocalArgs {
     /// Paths to the images to be used for setting the wallpaper
     #[clap(short, long, required = true, value_name = "IMAGE_PATHS")]
     image_paths: Vec<PathBuf>,
-
-    /// Interval in seconds to change the wallpaper
-    #[clap(short('n'), long, default_value = "3600", value_name = "INTERVAL")]
-    interval_in_secs: u64,
-
-    /// Transition type
-    #[clap(
-        short('t'),
-        long,
-        default_value = "random",
-        value_name = "TRANSITION_TYPE"
-    )]
-    transition_type: String,
-
-    /// Transition duration in seconds
-    #[clap(
-        short('d'),
-        long,
-        default_value = "3",
-        value_name = "TRANSITION_DURATION_SECS"
-    )]
-    transition_duration_secs: u32,
-
-    /// Resize strategy to pass to `awww img --resize`
-    #[clap(long, value_name = "RESIZE", value_parser = ["no", "crop", "fit", "stretch"])]
-    resize: Option<String>,
-}
-
-impl LocalArgs {
-    pub(crate) fn interval_in_secs(&self) -> u64 {
-        self.interval_in_secs
-    }
 }
 
 pub(crate) struct LocalWallSwitcher {
     args: LocalArgs,
+    common: crate::CommonArgs,
     images: Vec<PathBuf>,
 }
 
 impl LocalWallSwitcher {
-    pub(crate) fn new(args: LocalArgs) -> Self {
+    pub(crate) fn new(args: LocalArgs, common: crate::CommonArgs) -> Self {
         Self {
             args,
+            common,
             images: Vec::new(),
         }
     }
@@ -77,7 +47,7 @@ impl WallSwitcher for LocalWallSwitcher {
     }
 
     fn switch(&mut self) {
-        change_wallpaper_once(&self.images, &self.args);
+        change_wallpaper_once(&self.images, &self.common);
     }
 }
 
@@ -128,7 +98,7 @@ fn discover_images(paths: &[PathBuf]) -> Result<Vec<PathBuf>> {
 }
 
 /// Perform one wallpaper change cycle: query current, pick a different random image, and set it
-fn change_wallpaper_once(images: &[PathBuf], args: &LocalArgs) {
+fn change_wallpaper_once(images: &[PathBuf], common: &crate::CommonArgs) {
     // Get current wallpaper
     let current_wallpaper = match crate::get_current_wallpaper() {
         Ok(current) => {
@@ -149,9 +119,9 @@ fn change_wallpaper_once(images: &[PathBuf], args: &LocalArgs) {
         if current_wallpaper.as_ref() != Some(&new_wallpaper) {
             if let Err(e) = crate::set_wallpaper(
                 &new_wallpaper,
-                &args.transition_type,
-                args.transition_duration_secs,
-                args.resize.as_deref(),
+                &common.transition_type,
+                common.transition_duration_secs,
+                common.resize.as_deref(),
             ) {
                 eprintln!("Error setting wallpaper: {}", e);
             }

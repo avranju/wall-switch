@@ -1,4 +1,5 @@
 mod local;
+mod unsplash;
 
 use std::path::PathBuf;
 use std::process::Command;
@@ -9,9 +10,42 @@ use clap::{Parser, Subcommand};
 use tokio::signal::unix::{SignalKind, signal};
 use tokio::time::sleep;
 
+/// Common options shared across all wallpaper providers
+#[derive(clap::Args, Debug, Clone)]
+pub(crate) struct CommonArgs {
+    /// Interval in seconds to change the wallpaper
+    #[clap(short('n'), long, default_value = "3600", value_name = "INTERVAL")]
+    pub(crate) interval_in_secs: u64,
+
+    /// Transition type
+    #[clap(
+        short('t'),
+        long,
+        default_value = "random",
+        value_name = "TRANSITION_TYPE"
+    )]
+    pub(crate) transition_type: String,
+
+    /// Transition duration in seconds
+    #[clap(
+        short('d'),
+        long,
+        default_value = "3",
+        value_name = "TRANSITION_DURATION_SECS"
+    )]
+    pub(crate) transition_duration_secs: u32,
+
+    /// Resize strategy to pass to `awww img --resize`
+    #[clap(long, value_name = "RESIZE", value_parser = ["no", "crop", "fit", "stretch"])]
+    pub(crate) resize: Option<String>,
+}
+
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
 struct Cli {
+    #[command(flatten)]
+    common: CommonArgs,
+
     #[command(subcommand)]
     command: Commands,
 }
@@ -20,6 +54,8 @@ struct Cli {
 enum Commands {
     /// Use local image folders as the wallpaper source
     Local(local::LocalArgs),
+    /// Download random wallpapers from Unsplash
+    Unsplash(unsplash::UnsplashArgs),
 }
 
 pub(crate) trait WallSwitcher {
@@ -88,11 +124,11 @@ pub(crate) fn set_wallpaper(
 
 async fn run_wall_switcher<T: WallSwitcher>(
     mut wall_switcher: T,
-    interval_in_secs: u64,
+    common: &CommonArgs,
 ) -> Result<()> {
     wall_switcher.init()?;
 
-    println!("Changing wallpaper every {} seconds", interval_in_secs);
+    println!("Changing wallpaper every {} seconds", common.interval_in_secs);
 
     // Create SIGUSR1 signal listener
     let mut sigusr1_stream =
@@ -105,10 +141,10 @@ async fn run_wall_switcher<T: WallSwitcher>(
     loop {
         println!(
             "Waiting {} seconds until next change... (send SIGUSR1 to change immediately)",
-            interval_in_secs
+            common.interval_in_secs
         );
 
-        let sleep_fut = sleep(Duration::from_secs(interval_in_secs));
+        let sleep_fut = sleep(Duration::from_secs(common.interval_in_secs));
         tokio::pin!(sleep_fut);
 
         tokio::select! {
@@ -130,9 +166,12 @@ async fn main() -> Result<()> {
 
     match cli.command {
         Commands::Local(args) => {
-            let interval_in_secs = args.interval_in_secs();
-            let wall_switcher = local::LocalWallSwitcher::new(args);
-            run_wall_switcher(wall_switcher, interval_in_secs).await
+            let wall_switcher = local::LocalWallSwitcher::new(args, cli.common.clone());
+            run_wall_switcher(wall_switcher, &cli.common).await
+        }
+        Commands::Unsplash(args) => {
+            let wall_switcher = unsplash::UnsplashWallSwitcher::new(args, cli.common.clone());
+            run_wall_switcher(wall_switcher, &cli.common).await
         }
     }
 }
