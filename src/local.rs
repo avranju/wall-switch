@@ -1,6 +1,7 @@
 use std::path::PathBuf;
 
 use anyhow::Result;
+use async_trait::async_trait;
 use clap::Args;
 use rand::seq::IndexedRandom;
 use walkdir::WalkDir;
@@ -30,8 +31,9 @@ impl LocalWallSwitcher {
     }
 }
 
+#[async_trait]
 impl WallSwitcher for LocalWallSwitcher {
-    fn init(&mut self) -> Result<()> {
+    async fn init(&mut self) -> Result<()> {
         // Discover all available images
         self.images = discover_images(&self.args.image_paths)?;
 
@@ -46,7 +48,7 @@ impl WallSwitcher for LocalWallSwitcher {
         Ok(())
     }
 
-    fn switch(&mut self) {
+    async fn switch(&mut self) {
         change_wallpaper_once(&self.images, &self.common);
     }
 }

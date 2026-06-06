@@ -1,6 +1,7 @@
 use std::path::PathBuf;
 
 use anyhow::{Context, Result};
+use async_trait::async_trait;
 use clap::Args;
 use serde::Deserialize;
 
@@ -158,8 +159,9 @@ impl UnsplashWallSwitcher {
     }
 }
 
+#[async_trait]
 impl WallSwitcher for UnsplashWallSwitcher {
-    fn init(&mut self) -> Result<()> {
+    async fn init(&mut self) -> Result<()> {
         println!(
             "Starting Unsplash wallpaper switcher ({}x{}, interval={}s)",
             self.args.width, self.args.height, self.common.interval_in_secs
@@ -167,10 +169,8 @@ impl WallSwitcher for UnsplashWallSwitcher {
         Ok(())
     }
 
-    fn switch(&mut self) {
-        // Run the async wallpaper switch logic synchronously
-        let rt = tokio::runtime::Handle::current();
-        if let Err(e) = rt.block_on(self.switch_once()) {
+    async fn switch(&mut self) {
+        if let Err(e) = self.switch_once().await {
             if e.to_string().starts_with("rate_limited:") {
                 // Rate limiting is expected — just print and continue
                 return;

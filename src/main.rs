@@ -6,6 +6,7 @@ use std::process::Command;
 use std::time::Duration;
 
 use anyhow::{Context, Result};
+use async_trait::async_trait;
 use clap::{Parser, Subcommand};
 use tokio::signal::unix::{SignalKind, signal};
 use tokio::time::sleep;
@@ -58,9 +59,10 @@ enum Commands {
     Unsplash(unsplash::UnsplashArgs),
 }
 
+#[async_trait]
 pub(crate) trait WallSwitcher {
-    fn init(&mut self) -> Result<()>;
-    fn switch(&mut self);
+    async fn init(&mut self) -> Result<()>;
+    async fn switch(&mut self);
 }
 
 /// Query the current wallpaper using `awww query`
@@ -126,7 +128,7 @@ async fn run_wall_switcher<T: WallSwitcher>(
     mut wall_switcher: T,
     common: &CommonArgs,
 ) -> Result<()> {
-    wall_switcher.init()?;
+    wall_switcher.init().await?;
 
     println!("Changing wallpaper every {} seconds", common.interval_in_secs);
 
@@ -135,7 +137,7 @@ async fn run_wall_switcher<T: WallSwitcher>(
         signal(SignalKind::user_defined1()).context("Failed to register SIGUSR1 handler")?;
 
     // Do an initial change once at startup
-    wall_switcher.switch();
+    wall_switcher.switch().await;
 
     // Main event loop: wait for either interval or SIGUSR1, then change wallpaper
     loop {
@@ -156,7 +158,7 @@ async fn run_wall_switcher<T: WallSwitcher>(
             }
         }
 
-        wall_switcher.switch();
+        wall_switcher.switch().await;
     }
 }
 
