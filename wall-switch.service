@@ -1,0 +1,13 @@
+[Unit]
+Description=wall-switch wallpaper manager
+After=awww.service
+Requires=awww.service
+
+[Service]
+Type=simple
+Environment=UNSPLASH_API_KEY=<your-api-key>
+ExecStart=/usr/local/bin/wall-switch unsplash -w 1920 -H 1080
+Restart=on-failure
+
+[Install]
+WantedBy=awww.service
