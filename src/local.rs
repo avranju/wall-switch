@@ -7,6 +7,7 @@ use rand::seq::IndexedRandom;
 use walkdir::WalkDir;
 
 use crate::WallSwitcher;
+use tracing::{error, info, warn};
 
 #[derive(Args, Debug)]
 pub struct LocalArgs {
@@ -41,7 +42,7 @@ impl WallSwitcher for LocalWallSwitcher {
             anyhow::bail!("No images found in the specified paths");
         }
 
-        println!(
+        info!(
             "Starting wallpaper switcher with {} images",
             self.images.len()
         );
@@ -62,12 +63,12 @@ fn discover_images(paths: &[PathBuf]) -> Result<Vec<PathBuf>> {
 
     for path in paths {
         if !path.exists() {
-            eprintln!("Warning: Path does not exist: {}", path.display());
+            warn!("Path does not exist: {}", path.display());
             continue;
         }
 
         if !path.is_dir() {
-            eprintln!("Warning: Path is not a directory: {}", path.display());
+            warn!("Path is not a directory: {}", path.display());
             continue;
         }
 
@@ -89,13 +90,13 @@ fn discover_images(paths: &[PathBuf]) -> Result<Vec<PathBuf>> {
                     }
                 }
                 Err(e) => {
-                    eprintln!("Error accessing file: {}", e);
+                    error!("Error accessing file: {}", e);
                 }
             }
         }
     }
 
-    println!("Discovered {} images", images.len());
+    info!("Discovered {} images", images.len());
     Ok(images)
 }
 
@@ -105,12 +106,12 @@ fn change_wallpaper_once(images: &[PathBuf], common: &crate::CommonArgs) {
     let current_wallpaper = match crate::get_current_wallpaper() {
         Ok(current) => {
             if let Some(ref path) = current {
-                println!("Current wallpaper: {}", path.display());
+                info!("Current wallpaper: {}", path.display());
             }
             current
         }
         Err(e) => {
-            eprintln!("Warning: Could not query current wallpaper: {}", e);
+            warn!("Could not query current wallpaper: {}", e);
             None
         }
     };
@@ -125,13 +126,13 @@ fn change_wallpaper_once(images: &[PathBuf], common: &crate::CommonArgs) {
                 common.transition_duration_secs,
                 common.resize.as_deref(),
             ) {
-                eprintln!("Error setting wallpaper: {}", e);
+                error!("Error setting wallpaper: {}", e);
             }
         } else {
-            println!("Selected image is the same as current, skipping change");
+            info!("Selected image is the same as current, skipping change");
         }
     } else {
-        eprintln!("Warning: Could not select a random image");
+        warn!("Could not select a random image");
     }
 }
 

@@ -13,3 +13,5 @@ walkdir = "2.5.0"
 async-trait = "0.1"
 tokio = { version = "1.0", features = ["full"] }
 rand = "0.9.2"
+tracing = "0.1"
+tracing-subscriber = "0.3"

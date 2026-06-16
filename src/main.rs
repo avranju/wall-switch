@@ -1,6 +1,7 @@
 mod local;
 mod unsplash;
 
+use std::collections::HashMap;
 use std::path::PathBuf;
 use std::process::Command;
 use std::time::Duration;
@@ -8,8 +9,10 @@ use std::time::Duration;
 use anyhow::{Context, Result};
 use async_trait::async_trait;
 use clap::{Parser, Subcommand};
+use serde::Deserialize;
 use tokio::signal::unix::{SignalKind, signal};
 use tokio::time::sleep;
+use tracing::{error, info};
 
 /// Common options shared across all wallpaper providers
 #[derive(clap::Args, Debug, Clone)]
@@ -65,28 +68,37 @@ pub(crate) trait WallSwitcher {
     async fn switch(&mut self);
 }
 
-/// Query the current wallpaper using `awww query`
+#[derive(Debug, Deserialize)]
+struct AwwwDisplay {
+    displaying: Option<AwwwDisplaying>,
+}
+
+#[derive(Debug, Deserialize)]
+struct AwwwDisplaying {
+    image: Option<PathBuf>,
+}
+
+/// Query the current wallpaper using `awww query --json`
 pub(crate) fn get_current_wallpaper() -> Result<Option<PathBuf>> {
     let output = Command::new("awww")
         .arg("query")
+        .arg("--json")
         .output()
-        .context("Failed to execute awww query command")?;
+        .context("Failed to execute awww query --json command")?;
 
     if !output.status.success() {
         let error_msg = String::from_utf8_lossy(&output.stderr);
-        anyhow::bail!("awww query failed: {}", error_msg);
+        anyhow::bail!("awww query --json failed: {}", error_msg);
     }
 
     let stdout = String::from_utf8_lossy(&output.stdout);
+    let data: HashMap<String, Vec<AwwwDisplay>> = serde_json::from_str(&stdout)
+        .context("Failed to parse awww query --json output")?;
 
-    // Parse output like: "DP-1: 2560x1080, scale: 2, currently displaying: image: /path/to/image.jpg"
-    for line in stdout.lines() {
-        if let Some(image_part) = line.split("currently displaying: image: ").nth(1) {
-            return Ok(Some(PathBuf::from(image_part.trim())));
-        }
-    }
-
-    Ok(None)
+    Ok(data
+        .values()
+        .flat_map(|displays| displays.iter())
+        .find_map(|display| display.displaying.as_ref()?.image.clone()))
 }
 
 /// Set wallpaper using `awww img`
@@ -96,7 +108,7 @@ pub(crate) fn set_wallpaper(
     transition_duration_secs: u32,
     resize: Option<&str>,
 ) -> Result<()> {
-    println!("Setting wallpaper to: {}", image_path.display());
+    info!("Setting wallpaper to: {}", image_path.display());
 
     let mut command = Command::new("awww");
     command
@@ -120,7 +132,7 @@ pub(crate) fn set_wallpaper(
         anyhow::bail!("awww img failed: {}", error_msg);
     }
 
-    println!("Wallpaper changed successfully");
+    info!("Wallpaper changed successfully");
     Ok(())
 }
 
@@ -130,7 +142,7 @@ async fn run_wall_switcher<T: WallSwitcher>(
 ) -> Result<()> {
     wall_switcher.init().await?;
 
-    println!("Changing wallpaper every {} seconds", common.interval_in_secs);
+    info!("Changing wallpaper every {} seconds", common.interval_in_secs);
 
     // Create SIGUSR1 signal listener
     let mut sigusr1_stream =
@@ -141,20 +153,17 @@ async fn run_wall_switcher<T: WallSwitcher>(
 
     // Main event loop: wait for either interval or SIGUSR1, then change wallpaper
     loop {
-        println!(
-            "Waiting {} seconds until next change... (send SIGUSR1 to change immediately)",
-            common.interval_in_secs
-        );
+        info!("Waiting {} seconds until next change... (send SIGUSR1 to change immediately)", common.interval_in_secs);
 
         let sleep_fut = sleep(Duration::from_secs(common.interval_in_secs));
         tokio::pin!(sleep_fut);
 
         tokio::select! {
             _ = &mut sleep_fut => {
-                println!("Interval expired, changing wallpaper...");
+                info!("Interval expired, changing wallpaper...");
             }
             _ = sigusr1_stream.recv() => {
-                println!("Received SIGUSR1 signal, changing wallpaper immediately...");
+                info!("Received SIGUSR1 signal, changing wallpaper immediately...");
             }
         }
 
@@ -164,6 +173,15 @@ async fn run_wall_switcher<T: WallSwitcher>(
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    // Initialize tracing subscriber
+    tracing_subscriber::fmt::init();
+
+    // Pre-flight check: ensure `awww` is installed
+    if Command::new("awww").arg("--version").output().is_err() {
+        error!("The 'awww' binary was not found in your PATH. Please install it first.");
+        std::process::exit(1);
+    }
+
     let cli = Cli::parse();
 
     match cli.command {

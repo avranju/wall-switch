@@ -1,3 +1,4 @@
+use std::fs;
 use std::path::PathBuf;
 
 use anyhow::{Context, Result};
@@ -6,6 +7,7 @@ use clap::Args;
 use serde::Deserialize;
 
 use crate::WallSwitcher;
+use tracing::{error, info, warn};
 
 const UNSPLASH_API_BASE: &str = "https://api.unsplash.com";
 
@@ -71,7 +73,7 @@ impl UnsplashWallSwitcher {
     /// Download an image from the given URL and save it to a temp file.
     /// Returns the path to the downloaded file.
     async fn download_image(&self, url: &str) -> Result<PathBuf> {
-        println!("Downloading image from: {}", url);
+        info!("Downloading image from: {}", url);
 
         let resp = self
             .client
@@ -98,9 +100,9 @@ impl UnsplashWallSwitcher {
         let filename = format!("unsplash_wall_{}.jpg", timestamp);
         let path = std::env::temp_dir().join(filename);
 
-        std::fs::write(&path, &bytes).context("Failed to save downloaded image to temp file")?;
+        fs::write(&path, &bytes).context("Failed to save downloaded image to temp file")?;
 
-        println!("Saved image to: {}", path.display());
+        info!("Saved image to: {}", path.display());
         Ok(path)
     }
 
@@ -131,7 +133,7 @@ impl UnsplashWallSwitcher {
                 "Rate limited by Unsplash API. Retry-After: {} seconds. Skipping this cycle.",
                 retry_after
             );
-            eprintln!("{}", message);
+            warn!("{}", message);
             anyhow::bail!("rate_limited: {}", message);
         }
 
@@ -162,7 +164,7 @@ impl UnsplashWallSwitcher {
 #[async_trait]
 impl WallSwitcher for UnsplashWallSwitcher {
     async fn init(&mut self) -> Result<()> {
-        println!(
+        info!(
             "Starting Unsplash wallpaper switcher ({}x{}, interval={}s)",
             self.args.width, self.args.height, self.common.interval_in_secs
         );
@@ -175,7 +177,7 @@ impl WallSwitcher for UnsplashWallSwitcher {
                 // Rate limiting is expected — just print and continue
                 return;
             }
-            eprintln!("Error switching wallpaper: {}", e);
+            error!("Error switching wallpaper: {}", e);
         }
     }
 }
