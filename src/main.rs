@@ -92,8 +92,8 @@ pub(crate) fn get_current_wallpaper() -> Result<Option<PathBuf>> {
     }
 
     let stdout = String::from_utf8_lossy(&output.stdout);
-    let data: HashMap<String, Vec<AwwwDisplay>> = serde_json::from_str(&stdout)
-        .context("Failed to parse awww query --json output")?;
+    let data: HashMap<String, Vec<AwwwDisplay>> =
+        serde_json::from_str(&stdout).context("Failed to parse awww query --json output")?;
 
     Ok(data
         .values()
@@ -142,7 +142,10 @@ async fn run_wall_switcher<T: WallSwitcher>(
 ) -> Result<()> {
     wall_switcher.init().await?;
 
-    info!("Changing wallpaper every {} seconds", common.interval_in_secs);
+    info!(
+        "Changing wallpaper every {} seconds",
+        common.interval_in_secs
+    );
 
     // Create SIGUSR1 signal listener
     let mut sigusr1_stream =
@@ -153,7 +156,10 @@ async fn run_wall_switcher<T: WallSwitcher>(
 
     // Main event loop: wait for either interval or SIGUSR1, then change wallpaper
     loop {
-        info!("Waiting {} seconds until next change... (send SIGUSR1 to change immediately)", common.interval_in_secs);
+        info!(
+            "Waiting {} seconds until next change... (send SIGUSR1 to change immediately)",
+            common.interval_in_secs
+        );
 
         let sleep_fut = sleep(Duration::from_secs(common.interval_in_secs));
         tokio::pin!(sleep_fut);
